@@ -1,7 +1,7 @@
 {
   "name": "@absolutejs/cli",
   "version": "0.1.0",
-  "description": "Substrate CLI for the AbsoluteJS PaaS — secrets / env / deploy verbs over @absolutejs/secrets, @absolutejs/deploy, and @absolutejs/audit. Config-file driven; sibling to @absolutejs/absolute (the framework CLI).",
+  "description": "Operations CLI used by the hosted AbsoluteJS.ai platform and self-hosted Bun deployments: secrets, environment, and deploy verbs over AbsoluteJS packages.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/absolutejs/cli.git"

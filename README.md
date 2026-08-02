@@ -1,6 +1,6 @@
 # @absolutejs/cli
 
-Substrate CLI for the AbsoluteJS PaaS. Verbs over
+Operations CLI used by the hosted AbsoluteJS.ai platform and self-hosted Bun deployments. Verbs over
 [`@absolutejs/secrets`](https://github.com/absolutejs/secrets) and
 [`@absolutejs/deploy`](https://github.com/absolutejs/deploy):
 
@@ -30,18 +30,15 @@ absolutejs`, `npx absolutejs`, or alias it in your shell.
 Drop one in your project root. The CLI walks up from the cwd to find it.
 
 ```ts
-import { defineConfig } from '@absolutejs/cli';
-import {
-  createSecretBroker,
-  encryptedFileAdapter,
-} from '@absolutejs/secrets';
-import { hetznerTarget } from '@absolutejs/deploy/hetzner';
-import { createDeployer } from '@absolutejs/deploy';
+import { defineConfig } from "@absolutejs/cli";
+import { createSecretBroker, encryptedFileAdapter } from "@absolutejs/secrets";
+import { hetznerTarget } from "@absolutejs/deploy/hetzner";
+import { createDeployer } from "@absolutejs/deploy";
 
 const adapter = encryptedFileAdapter({
-  path: './.secrets.enc.json',
+  path: "./.secrets.enc.json",
   key: {
-    type: 'passphrase',
+    type: "passphrase",
     passphrase: process.env.SECRETS_MASTER!,
   },
 });
@@ -51,10 +48,10 @@ const broker = createSecretBroker({ adapter });
 const prodTarget = () =>
   hetznerTarget({
     token: process.env.HETZNER_TOKEN!,
-    name: 'api-prod-1',
-    region: 'nbg1',
-    serverType: 'cx22',
-    image: 'ubuntu-22.04',
+    name: "api-prod-1",
+    region: "nbg1",
+    serverType: "cx22",
+    image: "ubuntu-22.04",
     sshKeys: [process.env.HETZNER_KEY_FINGERPRINT!],
   });
 
@@ -63,15 +60,15 @@ export default defineConfig({
   secretAdapter: adapter,
   deployments: [
     {
-      name: 'prod',
+      name: "prod",
       target: prodTarget,
-      remotePath: '/etc/api.env',
-      secretNames: ['DATABASE_URL', 'STRIPE_KEY'],
-      extras: { NODE_ENV: 'production' },
-      reload: 'systemctl reload api',
+      remotePath: "/etc/api.env",
+      secretNames: ["DATABASE_URL", "STRIPE_KEY"],
+      extras: { NODE_ENV: "production" },
+      reload: "systemctl reload api",
       deployer: async () =>
         createDeployer({
-          appName: 'api',
+          appName: "api",
           target: await prodTarget(),
         }),
     },
@@ -88,27 +85,27 @@ Hetzner box.
 
 ### `secrets`
 
-| Verb | Description |
-| --- | --- |
-| `list` | Print every name + fingerprint from the adapter. Plaintext never appears. |
-| `get <name> [--show]` | Resolve one secret. Default prints `fingerprint=` only; `--show` prints plaintext. |
-| `set <NAME>=<value>` | Put a value via the configured adapter. |
-| `rotate <name>` | Call `broker.rotate(name)` — generates a new value, persists, fires `onRotate` listeners. |
+| Verb                  | Description                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| `list`                | Print every name + fingerprint from the adapter. Plaintext never appears.                 |
+| `get <name> [--show]` | Resolve one secret. Default prints `fingerprint=` only; `--show` prints plaintext.        |
+| `set <NAME>=<value>`  | Put a value via the configured adapter.                                                   |
+| `rotate <name>`       | Call `broker.rotate(name)` — generates a new value, persists, fires `onRotate` listeners. |
 
 ### `env`
 
-| Verb | Description |
-| --- | --- |
-| `push <stage>` | Resolve `secretNames` + `extras` for the stage, atomic-write the remote env file, run `reload`. |
-| `pull <stage>` | Read the remote env file as-is. |
+| Verb                   | Description                                                                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `push <stage>`         | Resolve `secretNames` + `extras` for the stage, atomic-write the remote env file, run `reload`.                                        |
+| `pull <stage>`         | Read the remote env file as-is.                                                                                                        |
 | `diff <stage> [--all]` | Show added/changed/removed keys between what `push` would write and what's currently on the remote. `--all` also lists unchanged keys. |
 
 ### `deploy`
 
-| Verb | Description |
-| --- | --- |
-| `releases <stage>` | List release history for a stage. |
-| `status <stage>` | Current release id + recent history. |
+| Verb                           | Description                                  |
+| ------------------------------ | -------------------------------------------- |
+| `releases <stage>`             | List release history for a stage.            |
+| `status <stage>`               | Current release id + recent history.         |
 | `rollback <stage> [--to <id>]` | Roll back to `--to` or the previous release. |
 
 ### Global flags
