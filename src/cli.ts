@@ -10,6 +10,7 @@ import { loadConfig } from './loadConfig';
 import { runSecrets, type SecretsArgs } from './commands/secrets';
 import { runEnv, type EnvArgs } from './commands/env';
 import { runDeploy, type DeployArgs } from './commands/deploy';
+import { runDiagnostics, type DiagnosticsArgs } from './commands/diagnostics';
 import { writeErr, writeOut, type OutputMode } from './utils/output';
 
 export type ParsedArgs = {
@@ -81,6 +82,11 @@ COMMANDS
   deploy status <stage>             current release id + recent history
   deploy rollback <stage> [--to <id>] roll back to <id> or the previous release
 
+  diagnostics capture <url>          record an audited HAR + console + UTC metadata
+  diagnostics redact <input.har>     write a redacted HAR without overwriting input
+  diagnostics audit <artifact>       fail closed when an artifact contains secrets
+  diagnostics inspect <input.har>    summarize requests, failures, timing, and privacy
+
 GLOBAL FLAGS
   --json                            machine-readable output
   --help                            this banner
@@ -113,6 +119,16 @@ export const main = async (argv: string[]): Promise<number> => {
 	}
 
 	try {
+		if (args.command === 'diagnostics') {
+			return await runDiagnostics(
+				{
+					flags: args.flags,
+					positional: args.positional,
+					verb
+				} satisfies DiagnosticsArgs,
+				mode
+			);
+		}
 		const { config } = await loadConfig();
 
 		switch (args.command) {
@@ -151,7 +167,7 @@ export const main = async (argv: string[]): Promise<number> => {
 
 			default:
 				writeErr(
-					`unknown command "${args.command}". try: secrets | env | deploy`
+					`unknown command "${args.command}". try: secrets | env | deploy | diagnostics`
 				);
 				return 2;
 		}

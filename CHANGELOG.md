@@ -1,5 +1,12 @@
 # @absolutejs/cli changelog
 
+## 0.2.0 — 2026-08-28
+
+- Add `diagnostics capture`, `redact`, `audit`, and `inspect` workflows backed
+  by `@absolutejs/diagnostics`.
+- Keep diagnostics commands independent from `absolutejs.config.ts` and refuse
+  to overwrite existing support artifacts.
+
 ## 0.1.0 — 2026-05-31
 
 Initial release. Closes G8 from the second-pass PaaS audit (the

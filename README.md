@@ -14,7 +14,8 @@ absolutejs deploy rollback prod          roll back to the previous release
 
 Sibling to [`@absolutejs/absolute`](https://github.com/absolutejs/absolute)
 (framework CLI: `dev`, `start`, `compile`, etc.). They're complementary —
-`absolute` is `dev/build/codegen`, `absolutejs` is `secrets/env/deploy`.
+`absolute` is `dev/build/codegen`, `absolutejs` is
+`secrets/env/deploy/diagnostics`.
 
 ## Install
 
@@ -107,6 +108,29 @@ Hetzner box.
 | `releases <stage>`             | List release history for a stage.            |
 | `status <stage>`               | Current release id + recent history.         |
 | `rollback <stage> [--to <id>]` | Roll back to `--to` or the previous release. |
+
+### `diagnostics`
+
+These commands do not require `absolutejs.config.ts`.
+
+| Verb                  | Description                                                                                                                                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capture <url>`       | Open an isolated Chrome support session with cache disabled and preserved navigation history. Produces an audited HAR, console log, and UTC metadata file. Type markers in the terminal; submit an empty line to stop. |
+| `redact <input.har>`  | Redact an existing DevTools HAR to a new file. Refuses to overwrite the source or an existing output.                                                                                                                  |
+| `audit <artifact>`    | Exit non-zero when an artifact contains credential, cookie, JWT, payment-card, or sensitive-field evidence.                                                                                                            |
+| `inspect <input.har>` | Summarize entries, failed requests, aggregate timing, and privacy-audit state.                                                                                                                                         |
+
+```bash
+absolutejs diagnostics capture https://example.com/checkout
+absolutejs diagnostics capture https://example.com/checkout --duration 120
+absolutejs diagnostics redact chrome-export.har --output vendor.redacted.har
+absolutejs diagnostics audit vendor.redacted.har
+absolutejs diagnostics inspect vendor.redacted.har --json
+```
+
+Capture bodies from a DevTools HAR are removed unless Diagnostics is configured
+with an explicit per-request retention policy. Raw temporary Playwright HARs are
+removed in a `finally` block after the redacted artifact is flushed and audited.
 
 ### Global flags
 
