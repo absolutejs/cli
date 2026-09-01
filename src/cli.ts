@@ -6,18 +6,19 @@
  * substrate's zero-peer-dep posture.
  */
 
-import { loadConfig } from './loadConfig';
-import { runSecrets, type SecretsArgs } from './commands/secrets';
-import { runEnv, type EnvArgs } from './commands/env';
-import { runDeploy, type DeployArgs } from './commands/deploy';
-import { runDiagnostics, type DiagnosticsArgs } from './commands/diagnostics';
-import { writeErr, writeOut, type OutputMode } from './utils/output';
+import { loadConfig } from "./loadConfig";
+import { runSecrets, type SecretsArgs } from "./commands/secrets";
+import { runEnv, type EnvArgs } from "./commands/env";
+import { runDeploy, type DeployArgs } from "./commands/deploy";
+import { runDiagnostics, type DiagnosticsArgs } from "./commands/diagnostics";
+import { runDb, type DbArgs } from "./commands/db";
+import { writeErr, writeOut, type OutputMode } from "./utils/output";
 
 export type ParsedArgs = {
-	command: string | undefined;
-	verb: string | undefined;
-	positional: string[];
-	flags: Record<string, string | boolean>;
+  command: string | undefined;
+  verb: string | undefined;
+  positional: string[];
+  flags: Record<string, string | boolean>;
 };
 
 /**
@@ -30,37 +31,37 @@ export type ParsedArgs = {
  * both become `{flag: value}`. Positional args don't start with `-`.
  */
 export const parseArgs = (argv: string[]): ParsedArgs => {
-	const positional: string[] = [];
-	const flags: Record<string, string | boolean> = {};
-	let command: string | undefined;
-	let verb: string | undefined;
-	let index = 0;
-	while (index < argv.length) {
-		const arg = argv[index] as string;
-		if (arg.startsWith('--')) {
-			const body = arg.slice(2);
-			const eq = body.indexOf('=');
-			if (eq >= 0) {
-				flags[body.slice(0, eq)] = body.slice(eq + 1);
-			} else {
-				const next = argv[index + 1];
-				if (next !== undefined && !next.startsWith('-')) {
-					flags[body] = next;
-					index += 1;
-				} else {
-					flags[body] = true;
-				}
-			}
-		} else if (command === undefined) {
-			command = arg;
-		} else if (verb === undefined) {
-			verb = arg;
-		} else {
-			positional.push(arg);
-		}
-		index += 1;
-	}
-	return { command, flags, positional, verb };
+  const positional: string[] = [];
+  const flags: Record<string, string | boolean> = {};
+  let command: string | undefined;
+  let verb: string | undefined;
+  let index = 0;
+  while (index < argv.length) {
+    const arg = argv[index] as string;
+    if (arg.startsWith("--")) {
+      const body = arg.slice(2);
+      const eq = body.indexOf("=");
+      if (eq >= 0) {
+        flags[body.slice(0, eq)] = body.slice(eq + 1);
+      } else {
+        const next = argv[index + 1];
+        if (next !== undefined && !next.startsWith("-")) {
+          flags[body] = next;
+          index += 1;
+        } else {
+          flags[body] = true;
+        }
+      }
+    } else if (command === undefined) {
+      command = arg;
+    } else if (verb === undefined) {
+      verb = arg;
+    } else {
+      positional.push(arg);
+    }
+    index += 1;
+  }
+  return { command, flags, positional, verb };
 };
 
 const HELP = `absolutejs — substrate CLI for the AbsoluteJS PaaS
@@ -81,6 +82,11 @@ COMMANDS
   deploy releases <stage>           list release history for a stage
   deploy status <stage>             current release id + recent history
   deploy rollback <stage> [--to <id>] roll back to <id> or the previous release
+
+  db check-drift                    do the committed migrations cover the schema? (offline)
+  db verify-contract                is anything destructive in the wrong phase? (offline)
+  db verify-schema --schema <path>  does the live database have what the new build selects?
+  db contract-migrate               apply the post-drain half, once the old slot has drained
 
   diagnostics capture <url>          record an audited HAR + console + UTC metadata
   diagnostics redact <input.har>     write a redacted HAR without overwriting input
@@ -105,79 +111,91 @@ CONFIG
     });`;
 
 export const main = async (argv: string[]): Promise<number> => {
-	const args = parseArgs(argv);
-	if (args.flags.help === true || args.command === undefined) {
-		writeOut(HELP);
-		return args.command === undefined && args.flags.help !== true ? 1 : 0;
-	}
+  const args = parseArgs(argv);
+  if (args.flags.help === true || args.command === undefined) {
+    writeOut(HELP);
+    return args.command === undefined && args.flags.help !== true ? 1 : 0;
+  }
 
-	const mode: OutputMode = args.flags.json === true ? 'json' : 'human';
-	const verb = args.verb;
-	if (verb === undefined) {
-		writeErr(`missing verb for "${args.command}". run \`absolutejs --help\``);
-		return 2;
-	}
+  const mode: OutputMode = args.flags.json === true ? "json" : "human";
+  const verb = args.verb;
+  if (verb === undefined) {
+    writeErr(`missing verb for "${args.command}". run \`absolutejs --help\``);
+    return 2;
+  }
 
-	try {
-		if (args.command === 'diagnostics') {
-			return await runDiagnostics(
-				{
-					flags: args.flags,
-					positional: args.positional,
-					verb
-				} satisfies DiagnosticsArgs,
-				mode
-			);
-		}
-		const { config } = await loadConfig();
+  try {
+    // Neither of these needs absolutejs.config.ts: a migration gate runs in
+    // CI, where a project's deploy config may not be resolvable at all.
+    if (args.command === "db") {
+      return await runDb(
+        {
+          flags: args.flags,
+          positional: args.positional,
+          verb,
+        } satisfies DbArgs,
+        mode,
+      );
+    }
+    if (args.command === "diagnostics") {
+      return await runDiagnostics(
+        {
+          flags: args.flags,
+          positional: args.positional,
+          verb,
+        } satisfies DiagnosticsArgs,
+        mode,
+      );
+    }
+    const { config } = await loadConfig();
 
-		switch (args.command) {
-			case 'secrets':
-				return await runSecrets(
-					config,
-					{
-						flags: args.flags,
-						positional: args.positional,
-						verb
-					} satisfies SecretsArgs,
-					mode
-				);
+    switch (args.command) {
+      case "secrets":
+        return await runSecrets(
+          config,
+          {
+            flags: args.flags,
+            positional: args.positional,
+            verb,
+          } satisfies SecretsArgs,
+          mode,
+        );
 
-			case 'env':
-				return await runEnv(
-					config,
-					{
-						flags: args.flags,
-						positional: args.positional,
-						verb
-					} satisfies EnvArgs,
-					mode
-				);
+      case "env":
+        return await runEnv(
+          config,
+          {
+            flags: args.flags,
+            positional: args.positional,
+            verb,
+          } satisfies EnvArgs,
+          mode,
+        );
 
-			case 'deploy':
-				return await runDeploy(
-					config,
-					{
-						flags: args.flags,
-						positional: args.positional,
-						verb
-					} satisfies DeployArgs,
-					mode
-				);
+      case "deploy":
+        return await runDeploy(
+          config,
+          {
+            flags: args.flags,
+            positional: args.positional,
+            verb,
+          } satisfies DeployArgs,
+          mode,
+        );
 
-			default:
-				writeErr(
-					`unknown command "${args.command}". try: secrets | env | deploy | diagnostics`
-				);
-				return 2;
-		}
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		if (mode === 'json') {
-			process.stdout.write(`${JSON.stringify({ error: message })}\n`);
-		} else {
-			writeErr(`error: ${message}`);
-		}
-		return 1;
-	}
+      default:
+        writeErr(
+          `unknown command "${args.command}". try: secrets | env | deploy | diagnostics | db`,
+        );
+        return 2;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (mode === "json") {
+      process.stdout.write(`${JSON.stringify({ error: message })}\n`);
+    } else {
+      writeErr(`error: ${message}`);
+    }
+    return 1;
+  }
 };

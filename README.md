@@ -10,6 +10,8 @@ absolutejs secrets rotate STRIPE_KEY     generate + persist a new value
 absolutejs env push prod                 push resolved env file to a stage
 absolutejs env diff prod                 see what `env push` would change
 absolutejs deploy rollback prod          roll back to the previous release
+absolutejs db check-drift                do the migrations cover the schema?
+absolutejs db verify-contract            is anything destructive in the wrong phase?
 ```
 
 Sibling to [`@absolutejs/absolute`](https://github.com/absolutejs/absolute)
@@ -131,6 +133,46 @@ absolutejs diagnostics inspect vendor.redacted.har --json
 Capture bodies from a DevTools HAR are removed unless Diagnostics is configured
 with an explicit per-request retention policy. Raw temporary Playwright HARs are
 removed in a `finally` block after the redacted artifact is flushed and audited.
+
+### `db` — migration phase gates
+
+Zero-downtime deploys run two binaries against one database: the old slot is
+still serving while the new one boots. A migration that drops or renames
+something the old slot still selects takes that slot down mid-deploy. So a
+migration is split — `migration.sql` may only add, and anything destructive
+moves to `contract.sql`, which runs after the old slot has drained.
+
+```bash
+absolutejs db check-drift                     # offline: do migrations cover the schema?
+absolutejs db verify-contract --since <id>    # offline: anything destructive in the wrong phase?
+absolutejs db verify-schema --schema db/schema.ts   # live: can the new build run against this?
+absolutejs db contract-migrate --since <id>   # live: apply the post-drain half
+```
+
+In a pipeline, in order: `check-drift` and `verify-contract` before anything is
+built; `drizzle-kit migrate` then `verify-schema` before the new slot is
+activated; `contract-migrate` after the old slot is gone.
+
+`check-drift` runs the generator under a marker name and looks at what it wanted
+to write. A schema file is not the whole schema surface — constants it imports
+are schema too, so editing one without regenerating produces drift that
+typecheck, lint and tests all miss and that surfaces as a failed deploy. Nothing
+contacts a database.
+
+`verify-schema` is deliberately one-directional. Missing tables, missing columns,
+and columns the code treats as `NOT NULL` that the database allows to be null
+are failures, because the new binary would break on them. Objects the database
+has and the code does not are **not** failures — during expand/contract that is
+exactly the expected state between migrate and the post-drain step.
+
+`contract-migrate` applies each file in one transaction with an advisory lock and
+its ledger row, so two deploys racing cannot both apply it and a crash cannot
+leave it applied-but-unrecorded.
+
+`--since <migration-id>` marks migrations that predate the policy, so adopting it
+on an existing project does not mean rewriting history. `--dir` (default
+`drizzle`), `--ledger`, `--lock` and `--url` cover the rest; `--url` falls back
+to `DATABASE_URL`.
 
 ### Global flags
 
