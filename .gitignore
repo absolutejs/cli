@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.log
 .DS_Store
+tests/fixtures/drift-*/
+tests/fixtures/prisma-tmp-*/

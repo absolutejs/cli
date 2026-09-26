@@ -165,14 +165,50 @@ are failures, because the new binary would break on them. Objects the database
 has and the code does not are **not** failures — during expand/contract that is
 exactly the expected state between migrate and the post-drain step.
 
-`contract-migrate` applies each file in one transaction with an advisory lock and
-its ledger row, so two deploys racing cannot both apply it and a crash cannot
-leave it applied-but-unrecorded.
+`contract-migrate` takes the engine's lock, re-reads the ledger under it, and
+applies each file with its ledger row, so two deploys racing cannot both apply
+it. Where DDL is transactional the file and its row commit together, so a crash
+cannot leave it applied-but-unrecorded.
 
 `--since <migration-id>` marks migrations that predate the policy, so adopting it
-on an existing project does not mean rewriting history. `--dir` (default
-`drizzle`), `--ledger`, `--lock` and `--url` cover the rest; `--url` falls back
-to `DATABASE_URL`.
+on an existing project does not mean rewriting history. `--dir` (default: the
+Drizzle config's `out`, Prisma's `migrations` folder, else `drizzle`), `--ledger`,
+`--lock` and `--url` cover the rest; `--url` falls back to `DATABASE_URL`.
+
+#### Engines
+
+The engine comes from the project: `drizzle.config.*`'s `dialect` (`--config`
+to point at one), or the Prisma schema's datasource `provider`
+(`--prisma-schema`). Only when neither exists does the URL's scheme decide, and
+with none of those the verb refuses rather than assuming PostgreSQL. `--dialect`
+and `--orm drizzle|prisma` override.
+
+| engine                         | check-drift          | verify-schema                                           | contract-migrate lock                                                                      |
+| ------------------------------ | -------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| PostgreSQL                     | drizzle-kit / Prisma | `information_schema`                                    | `pg_advisory_xact_lock`, one transaction per file                                          |
+| CockroachDB                    | drizzle-kit / Prisma | `information_schema` (cockroach-core or pg-core tables) | write intent on a lock-table row, held on its own connection                               |
+| MySQL, MariaDB                 | drizzle-kit / Prisma | `information_schema`                                    | `GET_LOCK` session lock; DDL commits implicitly, so only DML is atomic with the ledger row |
+| SingleStore                    | drizzle-kit          | `information_schema`                                    | refused: no `GET_LOCK`, non-transactional DDL                                              |
+| SQLite, Turso (`file:`)        | drizzle-kit / Prisma | `pragma_table_info`                                     | `BEGIN IMMEDIATE`                                                                          |
+| Turso (`libsql://`, `http://`) | drizzle-kit          | `pragma_table_info` via `@libsql/client`                | libSQL `write` transaction                                                                 |
+| SQL Server                     | drizzle-kit / Prisma | `INFORMATION_SCHEMA` via `mssql`                        | `sp_getapplock`, transaction-owned                                                         |
+
+Remote Turso needs `@libsql/client` and SQL Server needs `mssql` installed in
+the project (optional peers); a remote Turso token is read from
+`DATABASE_AUTH_TOKEN` or `TURSO_AUTH_TOKEN`. MySQL 8's default login needs TLS
+with Bun's driver (`?sslmode=require`).
+
+Refused, with the reason: Gel (drizzle-kit cannot generate for it), MongoDB,
+and Prisma 8, whose contract packages ship their own gates (`prisma migration
+check`, `prisma db verify --schema-only`).
+
+For Prisma 5-7, `check-drift` runs `prisma migrate diff --from-migrations …
+--exit-code`, which replays the migrations into a shadow database
+(`--shadow-url` / `SHADOW_DATABASE_URL` on ≤6; the config's
+`shadowDatabaseUrl` on 7), and `verify-schema` runs `prisma migrate status`.
+`verify-contract` and `contract-migrate` work on Prisma's migration folders
+unchanged: put the destructive half in a `contract.sql` beside
+`migration.sql`.
 
 ### Global flags
 
