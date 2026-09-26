@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/cli",
-  "version": "0.3.0-beta.0",
+  "version": "0.3.0-beta.1",
   "description": "Operations CLI used by the hosted AbsoluteJS.ai platform and self-hosted Bun deployments: secrets, environment, and deploy verbs over AbsoluteJS packages.",
   "repository": {
     "type": "git",
