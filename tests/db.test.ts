@@ -164,13 +164,32 @@ describe("runDb", () => {
   });
 
   test("verify-schema says what it needs rather than guessing", async () => {
-    expect(
-      runDb({ flags: {}, positional: [], verb: "verify-schema" }, "json"),
+    await expect(
+      runDb(
+        {
+          flags: { dialect: "postgresql" },
+          positional: [],
+          verb: "verify-schema",
+        },
+        "json",
+      ),
     ).rejects.toThrow("--schema");
   });
 
+  test("a live verb refuses to guess the engine", async () => {
+    const saved = process.env.DATABASE_URL;
+    delete process.env.DATABASE_URL;
+    try {
+      await expect(
+        runDb({ flags: {}, positional: [], verb: "verify-schema" }, "json"),
+      ).rejects.toThrow("cannot tell which database");
+    } finally {
+      if (saved !== undefined) process.env.DATABASE_URL = saved;
+    }
+  });
+
   test("verify-schema refuses tables it cannot read instead of passing over them", async () => {
-    expect(
+    await expect(
       runDb(
         {
           flags: {
@@ -186,7 +205,7 @@ describe("runDb", () => {
   });
 
   test("verify-schema never reports compatible having checked nothing", async () => {
-    expect(
+    await expect(
       runDb(
         {
           flags: {

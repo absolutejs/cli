@@ -1,0 +1,11 @@
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id       Int     @id
+  email    String
+  nickname String?
+
+  @@map("users")
+}

@@ -87,6 +87,8 @@ COMMANDS
   db verify-contract                is anything destructive in the wrong phase? (offline)
   db verify-schema --schema <path>  does the live database have what the new build selects?
   db contract-migrate               apply the post-drain half, once the old slot has drained
+                                    (engine from drizzle.config.* or the Prisma schema;
+                                     --dialect / --orm override)
 
   diagnostics capture <url>          record an audited HAR + console + UTC metadata
   diagnostics redact <input.har>     write a redacted HAR without overwriting input
