@@ -294,17 +294,37 @@ const verifySchema = async (
       "--schema <path> is required: the module exporting your Drizzle tables",
     );
   const exportName = stringFlag(flags, "export") ?? "schema";
-  const [{ getTableConfig }, loaded] = await Promise.all([
-    import("drizzle-orm/pg-core"),
-    import(resolve(modulePath)) as Promise<Record<string, unknown>>,
-  ]);
+  const [{ is, isTable }, { PgTable, getTableConfig }, loaded] =
+    await Promise.all([
+      import("drizzle-orm"),
+      import("drizzle-orm/pg-core"),
+      import(resolve(modulePath)) as Promise<Record<string, unknown>>,
+    ]);
   const tablesExport = loaded[exportName];
   // Either a `schema` object of tables, or the module's own table exports.
-  const tables = Object.values(
+  const exported = Object.entries(
     (typeof tablesExport === "object" && tablesExport !== null
       ? tablesExport
       : loaded) as Record<string, unknown>,
   );
+  // Only a value that is not a Drizzle table at all — a type, a helper, a
+  // relations object, a constant — may be passed over. A table this verb
+  // cannot read is a table it did not verify, and passing it over is how a
+  // check reports success having checked nothing.
+  const tables = exported.flatMap(([name, value]) =>
+    isTable(value) ? [{ name, value }] : [],
+  );
+  const unreadable = tables
+    .filter(({ value }) => !is(value, PgTable))
+    .map(({ name }) => name);
+  if (unreadable.length > 0)
+    throw new Error(
+      `cannot verify ${unreadable.length} table export(s) — not PostgreSQL tables: ${unreadable.join(", ")}`,
+    );
+  if (tables.length === 0)
+    throw new Error(
+      `no Drizzle tables found in ${modulePath}${tablesExport === undefined ? "" : ` (export "${exportName}")`} — refusing to report a schema compatible having checked nothing`,
+    );
 
   const sql = new SQL(databaseUrl(flags));
   const problems: string[] = [];
@@ -312,14 +332,9 @@ const verifySchema = async (
   let checkedColumns = 0;
   try {
     const live = await liveColumns(sql);
-    for (const table of tables) {
-      let config;
-      try {
-        config = getTableConfig(table as never);
-      } catch {
-        // Not a table export — a type, a helper, a constant.
-        continue;
-      }
+    for (const { value } of tables) {
+      if (!is(value, PgTable)) continue;
+      const config = getTableConfig(value);
       const columns = live.get(config.name);
       if (columns === undefined) {
         problems.push(`missing table: ${config.name}`);

@@ -168,4 +168,36 @@ describe("runDb", () => {
       runDb({ flags: {}, positional: [], verb: "verify-schema" }, "json"),
     ).rejects.toThrow("--schema");
   });
+
+  test("verify-schema refuses tables it cannot read instead of passing over them", async () => {
+    expect(
+      runDb(
+        {
+          flags: {
+            schema: join(import.meta.dir, "fixtures/mysqlSchema.ts"),
+            url: "postgres://unused@127.0.0.1:1/unused",
+          },
+          positional: [],
+          verb: "verify-schema",
+        },
+        "json",
+      ),
+    ).rejects.toThrow("orders");
+  });
+
+  test("verify-schema never reports compatible having checked nothing", async () => {
+    expect(
+      runDb(
+        {
+          flags: {
+            schema: join(import.meta.dir, "fixtures/noTables.ts"),
+            url: "postgres://unused@127.0.0.1:1/unused",
+          },
+          positional: [],
+          verb: "verify-schema",
+        },
+        "json",
+      ),
+    ).rejects.toThrow("no Drizzle tables");
+  });
 });
